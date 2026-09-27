@@ -1,132 +1,210 @@
-# SyncRoom — Real-time YouTube Watch Party
+# 🎬 SyncRoom — Real-Time YouTube Watch Party
 
-Watch together, in sync. Room-based YouTube watch party with Host / Moderator /
-Participant roles, real-time playback sync over Socket.IO, control-approval
-requests, chat and emoji reactions.
+<p align="center">
+  <b>Watch together. Stay in sync.</b>
+</p>
 
-## Structure
+<p align="center">
+  <a href="https://syncroom-seven.vercel.app/"><img alt="Frontend" src="https://img.shields.io/badge/Frontend-Live-brightgreen"></a>
+  <a href="https://syncroom-backend-ciwc.onrender.com/health"><img alt="Backend" src="https://img.shields.io/badge/Backend-Live-blue"></a>
+  <img alt="License" src="https://img.shields.io/badge/License-MIT-yellow">
+</p>
 
+SyncRoom is a real-time YouTube watch-party application that lets multiple users join the same room and watch a YouTube video together with fully synchronized playback. Built on **Socket.IO/WebSockets** for low-latency communication, it ships a role-based permission system with **Host, Moderator, and Participant** roles — so playback control, chat, and reactions all stay coordinated across every connected client.
+
+---
+
+## 🌐 Live Demo
+
+| Service | Link |
+|---|---|
+| 🖥️ Frontend | [syncroom-seven.vercel.app](https://syncroom-seven.vercel.app/) |
+| ⚙️ Backend | [syncroom-backend-ciwc.onrender.com](https://syncroom-backend-ciwc.onrender.com/) |
+| 💓 Health Check | [/health](https://syncroom-backend-ciwc.onrender.com/health) |
+
+---
+
+## 📌 Project Overview
+
+Watching a YouTube video together remotely gets messy fast when every participant controls their own player independently — someone pauses, someone seeks ahead, and the group falls out of sync within seconds.
+
+**SyncRoom solves this** by maintaining a single source of truth for room state on the server and broadcasting every meaningful playback action to all connected clients in real time.
+
+When a permitted user performs an action — **play, pause, seek, or change video** — that action is sent to the backend via Socket.IO. The backend validates the user's role, updates the authoritative room state, and broadcasts the result to every other participant. This gives a truly synchronized watch-party experience without the overhead and latency of continuously polling a REST API.
+
+---
+
+## ✨ Features
+
+### 🏠 Room Management
+- Create a unique watch room with a shareable room code.
+- Join an existing room using its room code.
+- Automatic **Host** assignment to the room creator.
+- New joiners are assigned the **Participant** role by default.
+- Full room state (video, playback position, participant list) syncs instantly on join.
+
+### 🎬 YouTube Integration
+- Native **YouTube IFrame Player** integration.
+- Load videos via video ID or supported YouTube URLs.
+- Real-time play / pause / seek synchronization.
+- Live video-change broadcasting to the whole room.
+- Initial playback state sync for participants joining mid-session.
+- Custom fullscreen support.
+- Restricted native YouTube keyboard shortcuts for non-privileged participants.
+
+### 👥 Role-Based Access Control
+
+| Role | Permissions |
+|---|---|
+| 👑 **Host** | Full room + playback control |
+| 🛡️ **Moderator** | Playback + video control |
+| 👤 **Participant** | Watch, chat, react, and request control |
+
+**Host**
+Automatically assigned to whoever creates the room.
+- Play / Pause / Seek video
+- Change video
+- Assign Moderator role
+- Remove participants
+- Transfer Host role
+- Approve or deny control requests
+
+**Moderator**
+- Play / Pause / Seek video
+- Change video
+- Chat and send reactions
+
+**Participant**
+- Watch the synchronized stream
+- Send chat messages and emoji reactions
+- Request playback control
+- View the live participant list
+- ❌ Cannot directly control playback
+
+---
+
+## 🔐 Server-Side Authorization
+
+SyncRoom never trusts the frontend alone to enforce permissions — **every privileged Socket.IO action is re-validated on the backend.**
+
+```text
+Client
+   │
+   │  play / pause / seek / change-video request
+   ▼
+Socket.IO Server
+   │
+   ├── Is the user actually inside this room?
+   ├── What role does this user hold?
+   ├── Is that role permitted to perform this action?
+   │
+   └── ✅ Validated → broadcast updated state
+       ❌ Rejected  → action ignored, no broadcast
+   ▼
+Other Room Participants
 ```
-syncroom/
-├── backend/     Node.js + Express + Socket.IO
-└── frontend/    React + TypeScript + Vite + Tailwind
-```
 
-## What's already set up
+This ensures a malicious or modified client cannot bypass the UI and issue unauthorized playback commands — the server is the single source of truth for both **room state** and **permissions**.
 
-Both `.env` files are already created and filled in with working local
-defaults — you don't need to touch them to run this on your own machine.
+---
 
-- `backend/.env` → `CLIENT_URL=http://localhost:5173`
-- `frontend/.env` → `VITE_SOCKET_URL=http://localhost:5000`
+## 🛠️ Tech Stack
 
-No API key needed anywhere — the YouTube IFrame Player is free and only
-needs a video ID, not an API key. (A key is only required if you later add
-a "search video by title" feature using the YouTube Data API.)
+| Layer | Technology |
+|---|---|
+| Real-time Communication | Socket.IO / WebSockets |
+| Video Playback | YouTube IFrame Player API |
+| Frontend Hosting | Vercel |
+| Backend Hosting | Render |
 
-## Running locally
+---
 
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js (LTS recommended)
+- npm or yarn
+
+### Clone the repository
 ```bash
-# terminal 1
+git clone https://github.com/<your-username>/syncroom.git
+cd syncroom
+```
+
+### Backend setup
+```bash
 cd backend
 npm install
 npm run dev
+```
 
-# terminal 2
+### Frontend setup
+```bash
 cd frontend
 npm install
 npm run dev
 ```
 
-Open `http://localhost:5173` in two browser tabs — create a room in one,
-join with the code in the other.
-
-## How it works
-
-- Room state lives in memory on the backend (`backend/src/services/roomService.js`).
-  No database needed to run it. If you want persistence later, swap the
-  functions in that file for real DB calls — same shape, same call sites.
-- Every privileged Socket.IO event is checked against the sender's role on
-  the backend (`backend/src/websocket/roomEvents.js`) — hiding a button on
-  the frontend is never treated as a security boundary here.
-- The host emits its playback time every 5 seconds; other clients compare
-  it to their own local time and only hard-seek if the drift is above
-  ~0.6s, so small network jitter doesn't cause visible jumps.
-- Manual seek-bar drags by the host/moderator are also picked up via a
-  1-second poll of the player's current time, since YouTube's own player
-  doesn't reliably fire a distinct "seek" event.
-
-### WebSocket events
-```
-create_room, join_room
-play, pause, seek, change_video, time_sync
-assign_role, remove_participant, transfer_host
-request_control, resolve_request
-chat_message, reaction
-room_state, user_joined, user_left, action_error, you_were_removed
+### Environment variables
+Create a `.env` file in the backend directory:
+```env
+PORT=5000
+CLIENT_URL=http://localhost:5173
 ```
 
-## Deployment
-
-**Backend → Render**
-1. New Web Service, root directory `backend`
-2. Build: `npm install` · Start: `npm start`
-3. Env var: `CLIENT_URL=<your frontend URL, added after step below>`
-
-**Frontend → Vercel**
-1. New Project, root directory `frontend`
-2. Build: `npm run build` · Output: `dist`
-3. Env var: `VITE_SOCKET_URL=<your Render backend URL>`
-
-Deploy the backend first, copy its URL into the frontend's env var and
-deploy that, then go back to Render and update `CLIENT_URL` with the final
-Vercel URL and redeploy. That's the only thing that changes between local
-and production — nothing else in the code needs touching.
-
-## Pushing to GitHub
-
-```bash
-cd syncroom
-git init
-git add .
-git commit -m "SyncRoom: real-time YouTube watch party with RBAC"
-git branch -M main
-git remote add origin https://github.com/SAJLENDRAPANDEY/syncroom.git
-git push -u origin main
+And in the frontend directory:
+```env
+VITE_BACKEND_URL=http://localhost:5000
 ```
 
-`.gitignore` is already in place in both folders, so `node_modules`, `.env`
-and `dist` won't get committed.
+---
 
-## Requirement checklist
+## 📂 Project Structure
 
-| Requirement | Where |
-|---|---|
-| Room create/join | `roomService.js`, `Home.tsx` |
-| YouTube integration | `YouTubePlayer.tsx` |
-| Play/pause/seek/change-video sync | `roomEvents.js`, `useRoom.ts` |
-| Host / Moderator / Participant roles | `roomService.js` |
-| Backend role enforcement | `canControlPlayback`, `isHost` checks |
-| Assign role / remove / transfer host | `assign_role`, `remove_participant`, `transfer_host` |
-| Control request + approval | `request_control`, `resolve_request` |
-| Sync health indicator + drift correction | `SyncIndicator.tsx`, `YouTubePlayer.tsx` |
-| Chat + reactions | `ChatPanel.tsx`, `reaction` event |
-| Connection status | `SyncIndicator.tsx` |
+```text
+syncroom/
+├── backend/
+│   ├── src/
+│   │   ├── sockets/       # Socket.IO event handlers
+│   │   ├── rooms/         # Room state management
+│   │   └── server.js
+│   └── package.json
+├── frontend/
+│   ├── src/
+│   │   ├── components/    # UI components (player, chat, controls)
+│   │   ├── hooks/         # Socket + room state hooks
+│   │   └── pages/
+│   └── package.json
+└── README.md
+```
 
-## Interview talking points
+---
 
-**Why WebSockets, not REST?** Playback sync is a real-time, bidirectional
-problem — when someone with permission plays, pauses, seeks or changes the
-video, the server validates their role and immediately pushes the result
-to everyone else in the room. Polling would add latency and load for no
-benefit here.
+## 🗺️ Roadmap
 
-**How is it actually secure?** Every privileged event is re-checked against
-the sender's role on the server before it's broadcast — a disabled button
-on the frontend is a UX hint, not a security control.
+- [ ] Persistent room history
+- [ ] Support for additional video sources
+- [ ] Voice chat integration
+- [ ] Mobile-optimized UI
 
-**How is drift handled?** The room keeps one authoritative playback state
-(video ID, playing/paused, current time). New joiners get it immediately.
-The host also re-broadcasts its time periodically so other clients can
-self-correct instead of assuming that receiving the same event means
-staying perfectly in sync.
+---
+
+## 🤝 Contributing
+
+Contributions are welcome!
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/your-feature`)
+3. Commit your changes (`git commit -m 'Add your feature'`)
+4. Push to the branch (`git push origin feature/your-feature`)
+5. Open a Pull Request
+
+---
+
+## 📄 License
+
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
+
+---
+
+<p align="center">Made with ❤️ for watching videos together, in sync.</p>
